@@ -38,9 +38,7 @@ const useApp=()=>useContext(AppC);
 //-----------------------------------
 const MusicC=createContext<any>(null);
 function MusicProvider({children}:{children:ReactNode}){
-
   const a=useRef<HTMLAudioElement>(null),
-
   [cfg,setCfg]=useState<MusicCfg>({
     enabled:false,
     track_name:'Cute Music',
@@ -48,8 +46,11 @@ function MusicProvider({children}:{children:ReactNode}){
     volume:.5
   });
 
-  async function refresh(){
+  const [userMuted,setUserMuted]=useState(
+    localStorage.getItem('music-muted')!=='false'
+  );
 
+  async function refresh(){
     const {data}=await supabase
       .from('music_settings')
       .select('*')
@@ -64,19 +65,36 @@ function MusicProvider({children}:{children:ReactNode}){
         volume:Number(data.volume ?? .5)
       });
     }
-
   }
 
   async function play(){
-
-    if(!a.current || !cfg.enabled) return;
+    if(!a.current || !cfg.enabled || userMuted)return;
 
     a.current.volume=cfg.volume;
 
     try{
       await a.current.play();
     }catch{}
+  }
 
+  async function toggleMusic(){
+    if(!a.current || !cfg.enabled)return;
+
+    if(userMuted){
+      setUserMuted(false);
+      localStorage.setItem('music-muted','false');
+      a.current.volume=cfg.volume;
+
+      try{
+        await a.current.play();
+      }catch{}
+
+      return;
+    }
+
+    a.current.pause();
+    setUserMuted(true);
+    localStorage.setItem('music-muted','true');
   }
 
   useEffect(()=>{
@@ -84,55 +102,21 @@ function MusicProvider({children}:{children:ReactNode}){
   },[]);
 
   useEffect(()=>{
-
-    if(!a.current) return;
+    if(!a.current)return;
 
     a.current.volume=cfg.volume;
 
-    if(!cfg.enabled){
+    if(!cfg.enabled || userMuted){
       a.current.pause();
       return;
     }
 
     a.current.load();
     play();
-
-  },[cfg]);
-
-  useEffect(()=>{
-
-    const f=()=>play();
-
-    document.addEventListener(
-      'pointerdown',
-      f,
-      {once:true}
-    );
-
-    document.addEventListener(
-      'keydown',
-      f,
-      {once:true}
-    );
-
-    return ()=>{
-
-      document.removeEventListener(
-        'pointerdown',
-        f
-      );
-
-      document.removeEventListener(
-        'keydown',
-        f
-      );
-
-    };
-
-  },[cfg]);
+  },[cfg,userMuted]);
 
   return(
-    <MusicC.Provider value={{cfg,refresh}}>
+    <MusicC.Provider value={{cfg,refresh,userMuted,toggleMusic}}>
       <audio
         ref={a}
         src={cfg.music_url}
@@ -142,11 +126,58 @@ function MusicProvider({children}:{children:ReactNode}){
       {children}
     </MusicC.Provider>
   );
-
 }
 
+
 const useMusic=()=>useContext(MusicC);
-const defaults:any={welcome:'🐶',proposal:'🐱',date:'📅',time:'⏰',places:'📍',foods:'🍽️',notes:'📝',confirm:'❤️',success:'🎉'};function Hero({page,heroes}:{page:string;heroes:Hero[]}){const h=heroes.find(x=>x.page_key===page);return h?.media_url?<img className="hero" src={h.media_url}/>:<div className="pet">{h?.emoji||defaults[page]}</div>}function Shell({children,step,back=true,wide=false}:{children:ReactNode;step?:number;back?:boolean;wide?:boolean}){const n=useNavigate();return <main className={'shell '+(wide?'wide':'')}>{back&&<button className="back" onClick={()=>n(-1)}><ChevronLeft/></button>}{step&&<div className="progress"><i style={{width:`${step/7*100}%`}}/></div>}<motion.section className="card" initial={{opacity:0,y:16}} animate={{opacity:1,y:0}}>{children}</motion.section></main>}function Primary(p:ComponentProps<typeof motion.button>){return <motion.button whileTap={{scale:.96}} className="primary" {...p}/>}function useSug(k:Kind){const[x,setX]=useState<Sug[]>([]);useEffect(()=>{supabase.from('suggestions').select('*').eq('kind',k).order('sort_order').then(r=>setX((r.data||[])as Sug[]))},[k]);return x}
+const defaults:any={welcome:'🐶',proposal:'🐱',date:'📅',time:'⏰',places:'📍',foods:'🍽️',notes:'📝',confirm:'❤️',success:'🎉'};function Hero({page,heroes}:{page:string;heroes:Hero[]}){const h=heroes.find(x=>x.page_key===page);return h?.media_url?<img className="hero" src={h.media_url}/>:<div className="pet">{h?.emoji||defaults[page]}</div>}
+function Shell({children,step,back=true,wide=false}:{children:ReactNode;step?:number;back?:boolean;wide?:boolean}){
+  const n=useNavigate();
+  const music=useMusic();
+
+  return <main className={'shell '+(wide?'wide':'')}>
+    {back&&<button className="back" onClick={()=>n(-1)}><ChevronLeft/></button>}
+
+    {music?.cfg?.enabled&&(
+      <button
+        onClick={music.toggleMusic}
+        style={{
+          position:'fixed',
+          top:16,
+          right:16,
+          zIndex:999,
+          width:42,
+          height:42,
+          border:'1px solid white',
+          borderRadius:22,
+          background:'#ffffffdf',
+          cursor:'pointer'
+        }}
+      >
+        {music.userMuted?'🔇':'🎵'}
+      </button>
+    )}
+
+    {step&&<div className="progress"><i style={{width:`${step/7*100}%`}}/></div>}
+
+    <motion.section className="card" initial={{opacity:0,y:16}} animate={{opacity:1,y:0}}>
+      {children}
+    </motion.section>
+  </main>
+}
+
+function Primary(p:ComponentProps<typeof motion.button>){
+  return <motion.button whileTap={{scale:.96}} className="primary" {...p}/>;
+}
+
+function useSug(k:Kind){
+  const[x,setX]=useState<Sug[]>([]);
+  useEffect(()=>{
+    supabase.from('suggestions').select('*').eq('kind',k).order('sort_order').then(r=>setX((r.data||[])as Sug[]));
+  },[k]);
+  return x;
+}
+
 function Guard({step,code,children}:{step:number;code:string;children:ReactNode}){const{flow}=useApp(),o=['accepted','date','time','places','foods','notes'];return step===0||flow[o[step-1]]?<>{children}</>:<Navigate to={`/r/${code}/${step<=1?'proposal':o[step-1]}`} replace/>}
 function RecipientApp(){
   const {code=''}=useParams();
