@@ -421,7 +421,55 @@ function Confirm({r,h}:{r:Rec;h:Hero[]}){
   </Shell>;
 }
 
-function Success(){const{id}=useParams(),[d,setD]=useState<Resp|null>(null),[h,setH]=useState<Hero[]>([]),[load,setLoad]=useState(true),cert=useRef<HTMLDivElement>(null);useEffect(()=>{Promise.all([supabase.from('responses').select('*,recipient:recipients(*)').eq('id',id).single(),supabase.from('page_heroes').select('*')]).then(([a,b])=>{setD(a.data);setH((b.data||[])as Hero[]);setLoad(false)})},[id]);async function dl(){if(!cert.current)return;const c=await html2canvas(cert.current,{scale:2});const a=document.createElement('a');a.download='date-certificate.png';a.href=c.toDataURL();a.click()}if(load)return <Shell back={false}>Loading...</Shell>;if(!d)return <Shell back={false}>Not found</Shell>;return <Shell back={false}><Confetti recycle={false}/><Hero page="success" heroes={h}/><h1>Thank you {d.recipient?.name} ❤️</h1><div className="certificate" ref={cert}><div className="seal">♥</div>
+function Success(){const{id}=useParams(),[d,setD]=useState<Resp|null>(null),[h,setH]=useState<Hero[]>([]),[load,setLoad]=useState(true),cert=useRef<HTMLDivElement>(null);useEffect(()=>{Promise.all([supabase.from('responses').select('*,recipient:recipients(*)').eq('id',id).single(),supabase.from('page_heroes').select('*')]).then(([a,b])=>{setD(a.data);setH((b.data||[])as Hero[]);setLoad(false)})},[id]);
+async function dl(){
+
+  if(!cert.current) return;
+
+  const canvas=await html2canvas(
+    cert.current,
+    {
+      scale:2,
+      useCORS:true
+    }
+  );
+
+  canvas.toBlob(blob=>{
+
+    if(!blob) return;
+
+    const url=URL.createObjectURL(blob);
+
+    const isMobile=
+      /Android|iPhone|iPad|iPod/i.test(
+        navigator.userAgent
+      );
+
+    if(isMobile){
+
+      window.open(
+        url,
+        '_blank'
+      );
+
+      return;
+    }
+
+    const a=document.createElement('a');
+
+    a.href=url;
+    a.download='date-certificate.png';
+
+    a.click();
+
+    setTimeout(()=>{
+      URL.revokeObjectURL(url);
+    },1000);
+
+  },'image/png');
+}
+
+if(load)return <Shell back={false}>Loading...</Shell>;if(!d)return <Shell back={false}>Not found</Shell>;return <Shell back={false}><Confetti recycle={false}/><Hero page="success" heroes={h}/><h1>Thank you {d.recipient?.name} ❤️</h1><div className="certificate" ref={cert}><div className="seal">♥</div>
 <h2>🏆 Certificate of Date Acceptance ❤️</h2>
 <p className="cert-intro">
 💌 This is to certify that
