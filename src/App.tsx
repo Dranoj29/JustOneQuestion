@@ -423,60 +423,24 @@ function Confirm({r,h}:{r:Rec;h:Hero[]}){
 
 function Success(){const{id}=useParams(),[d,setD]=useState<Resp|null>(null),[h,setH]=useState<Hero[]>([]),[load,setLoad]=useState(true),cert=useRef<HTMLDivElement>(null);useEffect(()=>{Promise.all([supabase.from('responses').select('*,recipient:recipients(*)').eq('id',id).single(),supabase.from('page_heroes').select('*')]).then(([a,b])=>{setD(a.data);setH((b.data||[])as Hero[]);setLoad(false)})},[id]);
 async function dl(){
+
   if(!cert.current)return;
 
   const canvas=await html2canvas(cert.current,{
     scale:2,
-    useCORS:true,
-    backgroundColor:'#fff9fb'
+    useCORS:true
   });
 
-  const blob=await new Promise<Blob|null>(resolve=>{
-    canvas.toBlob(resolve,'image/png',1);
-  });
+  const a=document.createElement('a');
 
-  if(!blob)throw new Error('Certificate image could not be created.');
+  a.download='date-certificate.png';
+  a.href=canvas.toDataURL('image/png');
 
-  const isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 
-  if(isMobile){
-    const file=new File(
-      [blob],
-      'date-certificate.png',
-      {type:'image/png'}
-    );
-
-    if(
-      typeof navigator.share==='function'&&
-      typeof navigator.canShare==='function'&&
-      navigator.canShare({files:[file]})
-    ){
-      try{
-        await navigator.share({
-          title:'Date Certificate',
-          files:[file]
-        });
-        return;
-      }catch(error){
-        if(error instanceof DOMException&&error.name==='AbortError')return;
-      }
-    }
-  }
-
-  const url=URL.createObjectURL(blob);
-  const link=document.createElement('a');
-
-  link.href=url;
-  link.download='date-certificate.png';
-  link.style.display='none';
-
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-
 if(load)return <Shell back={false}>Loading...</Shell>;if(!d)return <Shell back={false}>Not found</Shell>;return <Shell back={false}><Confetti recycle={false}/><Hero page="success" heroes={h}/><h1>Thank you {d.recipient?.name} ❤️</h1><div className="certificate" ref={cert}><div className="seal">♥</div>
 <h2>🏆 Certificate of Date Acceptance ❤️</h2>
 <p className="cert-intro">
