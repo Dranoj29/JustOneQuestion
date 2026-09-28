@@ -423,50 +423,58 @@ function Confirm({r,h}:{r:Rec;h:Hero[]}){
 
 function Success(){const{id}=useParams(),[d,setD]=useState<Resp|null>(null),[h,setH]=useState<Hero[]>([]),[load,setLoad]=useState(true),cert=useRef<HTMLDivElement>(null);useEffect(()=>{Promise.all([supabase.from('responses').select('*,recipient:recipients(*)').eq('id',id).single(),supabase.from('page_heroes').select('*')]).then(([a,b])=>{setD(a.data);setH((b.data||[])as Hero[]);setLoad(false)})},[id]);
 async function dl(){
+  if(!cert.current)return;
 
-  if(!cert.current) return;
+  const canvas=await html2canvas(cert.current,{
+    scale:2,
+    useCORS:true,
+    backgroundColor:'#fff9fb'
+  });
 
-  const canvas=await html2canvas(
-    cert.current,
-    {
-      scale:2,
-      useCORS:true
+  const blob=await new Promise<Blob|null>(resolve=>{
+    canvas.toBlob(resolve,'image/png',1);
+  });
+
+  if(!blob)throw new Error('Certificate image could not be created.');
+
+  const isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  if(isMobile){
+    const file=new File(
+      [blob],
+      'date-certificate.png',
+      {type:'image/png'}
+    );
+
+    if(
+      typeof navigator.share==='function'&&
+      typeof navigator.canShare==='function'&&
+      navigator.canShare({files:[file]})
+    ){
+      try{
+        await navigator.share({
+          title:'Date Certificate',
+          files:[file]
+        });
+        return;
+      }catch(error){
+        if(error instanceof DOMException&&error.name==='AbortError')return;
+      }
     }
-  );
+  }
 
-  canvas.toBlob(blob=>{
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement('a');
 
-    if(!blob) return;
+  link.href=url;
+  link.download='date-certificate.png';
+  link.style.display='none';
 
-    const url=URL.createObjectURL(blob);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 
-    const isMobile=
-      /Android|iPhone|iPad|iPod/i.test(
-        navigator.userAgent
-      );
-
-    if(isMobile){
-
-      window.open(
-        url,
-        '_blank'
-      );
-
-      return;
-    }
-
-    const a=document.createElement('a');
-
-    a.href=url;
-    a.download='date-certificate.png';
-
-    a.click();
-
-    setTimeout(()=>{
-      URL.revokeObjectURL(url);
-    },1000);
-
-  },'image/png');
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 
 if(load)return <Shell back={false}>Loading...</Shell>;if(!d)return <Shell back={false}>Not found</Shell>;return <Shell back={false}><Confetti recycle={false}/><Hero page="success" heroes={h}/><h1>Thank you {d.recipient?.name} ❤️</h1><div className="certificate" ref={cert}><div className="seal">♥</div>
